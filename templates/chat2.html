@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Chat Application</h1>
+        <div id="login-section" class="row">
+            <div class="col-md-4 offset-md-4">
+                <h3>Login</h3>
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" class="form-control">
+                </div>
+                <button id="login" class="btn btn-primary">Login</button>
+            </div>
+        </div>
+        <div id="chat-section" class="row" style="display:none;">
+            <div class="col-md-4">
+                <ul id="user-list" class="list-group">
+                    <!-- User list will be populated here -->
+                </ul>
+            </div>
+            <div class="col-md-8">
+                <div id="chat" class="border p-3" style="height: 400px; overflow-y: scroll;">
+                    <!-- Chat messages will be displayed here -->
+                </div>
+                <div class="input-group mt-3">
+                    <input type="text" id="message" class="form-control" placeholder="Type a message">
+                    <div class="input-group-append">
+                        <button id="send" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script>
+        var selectedUser = null;
+        var currentUserId = localStorage.getItem('currentUserId');
+        var ws;
+
+        $(document).ready(function() {
+            // Check if user is already logged in
+            if (currentUserId) {
+                showChatSection();
+                fetchUserList();
+                initWebSocket();
+            } else {
+                $('#login-section').show();
+            }
+
+            // Login button click event
+            $('#login').click(function() {
+                var username = $('#username').val();
+                var password = $('#password').val();
+                $.ajax({
+                    url: '/login',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ username: username, password: password }),
+                    success: function(response) {
+                        if (response.user_id) {
+                            localStorage.setItem('currentUserId', response.user_id);
+                            currentUserId = response.user_id;
+                            showChatSection();
+                            fetchUserList();
+                            initWebSocket();
+                        } else {
+                            alert('Invalid login credentials');
+                        }
+                    }
+                });
+            });
+
+            // Fetch and display user list
+            function fetchUserList() {
+                $.get('/users', function(users) {
+                    users.forEach(function(user) {
+                        $('#user-list').append('<li class="list-group-item" data-id="' + user.id + '">' + user.username + '</li>');
+                    });
+
+                    // Click event to select a user and fetch chat history
+                    $('.list-group-item').click(function() {
+                        selectedUser = $(this).data('id');
+                        $('#chat').html('');
+
+                        // Fetch chat history with the selected user
+                        $.get('/messages?sender_id=' + currentUserId + '&receiver_id=' + selectedUser, function(messages) {
+                            messages.forEach(function(msg) {
+                                $('#chat').append('<div><strong>' + msg.id + ':</strong> ' + msg.message_text + ' <em>(' + msg.status + ')</em></div>');
+                            });
+                        });
+                    });
+                });
+            }
+
+            // Send message
+            $('#send').click(function() {
+                var message = $('#message').val();
+                if (message && selectedUser) {                    
+                    // Send message over WebSocket
+                    var msgObj = {
+                        sender_id: parseInt(currentUserId),
+                        receiver_id: parseInt(selectedUser),
+                        message_text: message
+                    };
+                    msgObj = JSON.stringify(msgObj)
+                    console.log('msgObj : ' + msgObj);
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(msgObj);
+                        console.log('message sent in socket');
+                    }
+                }
+            });
+
+            // Show chat section
+            function showChatSection() {
+                $('#login-section').hide();
+                $('#chat-section').show();
+            }
+
+            // Initialize WebSocket connection
+            function initWebSocket() {
+                ws = new WebSocket('ws://localhost:8080/ws');
+
+                ws.onopen = function() {
+                    console.log('WebSocket connection opened');
+                };
+
+                ws.onmessage = function(event) {
+                    try {
+                        var message = JSON.parse(event.data);
+                        if (message.sender_id === selectedUser || message.receiver_id === selectedUser) {
+                            $('#chat').append('<div><strong>' + message.id + ':</strong> ' + message.message_text + ' <em>(' + message.status + ')</em></div>');
+                        }
+                    } catch (e) {
+                        console.error('Invalid JSON received:', event.data);
+                    }
+                };
+
+                ws.onclose = function() {
+                    console.log('WebSocket connection closed');
+                };
+
+                ws.onerror = function(error) {
+                    console.log('WebSocket error:', error);
+                };
+            }
+        });
+    </script>
+</body>
+</html>

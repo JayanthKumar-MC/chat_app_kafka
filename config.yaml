@@ -1,0 +1,10 @@
+db:
+  user: "root"
+  password: "root"
+  host: "localhost"
+  port: "3306"
+  name: "chat_app"
+
+kafka:
+  url: "localhost:9092"
+  topic: "chat-messages"

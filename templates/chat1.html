@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        #chat {
+            height: 400px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: scroll;
+        }
+        #users {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Chat</h2>
+    <div id="users">
+        <ul id="user-list" class="list-group"></ul>
+    </div>
+    <div id="chat"></div>
+    <form id="chat-form">
+        <input type="text" id="message" class="form-control" placeholder="Enter your message">
+        <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script>
+    let conn;
+    let selectedUser;
+
+    $(document).ready(function() {
+        conn = new WebSocket('ws://localhost:8080/ws');
+        conn.onmessage = function(e) {
+            $('#chat').append('<div>' + e.data + '</div>');
+        };
+
+        $.get('/users', function(users) {
+            users.forEach(function(user) {
+                $('#user-list').append('<li class="list-group-item" data-id="' + user.id + '">' + user.username + '</li>');
+            });
+
+            $('.list-group-item').click(function() {
+                selectedUser = $(this).data('id');
+                $('#chat').html('');
+                // Fetch chat history with the selected user
+                $.get('/messages?receiver_id=' + selectedUser, function(messages) {
+                    messages.forEach(function(msg) {
+                        $('#chat').append('<div>' + msg.message_text + '</div>');
+                    });
+                });
+            });
+        });
+
+        $('#chat-form').submit(function(e) {
+            e.preventDefault();
+            const message = $('#message').val();
+            conn.send(JSON.stringify({ receiver_id: selectedUser, message_text: message }));
+            $('#message').val('');
+        });
+    });
+</script>
+</body>
+</html>
