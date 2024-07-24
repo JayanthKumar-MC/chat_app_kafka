@@ -73,11 +73,7 @@ postgres:
 ```
 
   ## Running the Application
-  `1.` Start the Kafka consumer:
-  ```
-  go run main.go
-  ```
-  `2.` Run the web server:
+  `1.` Run the web server:
   ```
   go run main.go
   ```
